@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         HIT Forker
+// @name         HIT Forker - PandaManger version
 // @version      1.2.4
 // @description  Monitors mturk.com for HITs
 // @author       ThisPoorGuy
@@ -14,6 +14,8 @@
 // @connect      turkerview.com
 // @require      https://code.jquery.com/jquery-3.1.0.min.js
 // @require      https://cdnjs.cloudflare.com/ajax/libs/dompurify/1.0.8/purify.min.js
+
+// Note: This is saqfish's edit of Hit Forker. This verison works with Panda Manger instead of Panda Crazy. You should disable Panda Crazy if you don't want to run into any issues.
 
 // @namespace https://greasyfork.org/users/163167
 // ==/UserScript==
@@ -160,120 +162,25 @@ rew    = '&sort=reward_desc&page_size=';
 minrew = '&filters%5Bmin_reward%5D=';
 searchqual = '&filters%5Bqualified=';
 
-var PandaCrazy = (function createPandaCrazy() {
-    let _self = this;
-
-    let _lastSentPingTime;
-    let _lastReceivedPongTime;
-
-    let _onlineSinceLastPing;
-
-    let _pcListener;
-
-    const MAX_WAIT_FOR_PANDA_CRAZY_RESPONSE_MS = 1000;
-
-    function ping() {
-        _lastSentPingTime = Date.now();
-        localStorage.setItem("JR_message_ping_pandacrazy", `{"theTarget": "${Math.random()}"}`);
-    }
-
-    function hasIndicatedOnlineSinceLastPing() {
-        if(_lastSentPingTime !== undefined && _lastReceivedPongTime !== undefined) {
-            return _lastReceivedPongTime >= _lastSentPingTime;
-        }
-        else {
-            return undefined;
-        }
-    }
-
-    function online() {
-
-        function respondToStorage(resolve, reject, e) {
-            if(e.key.includes("JR_message_pong") && Boolean(e.newValue)) {
-
-                _lastReceivedPongTime = Date.now();
-
-                let pongData = JSON.parse(e.newValue);
-
-                let lag = Number(pongData.time) - Number(_lastReceivedPongTime);
-
-                if(hasIndicatedOnlineSinceLastPing()) {
-                    resolve("online");
-                }
-            }
-        }
-
-        let isOnlinePromise = new Promise((resolve, reject) => {
-
-            setTimeout(() => {reject("timeout");}, MAX_WAIT_FOR_PANDA_CRAZY_RESPONSE_MS);
-
-            if(_pcListener) {window.removeEventListener("storage", _pcListener);}
-
-            _pcListener = respondToStorage.bind(window, resolve, reject);
-
-            window.addEventListener("storage", _pcListener);
-
-            /*
-             window.addEventListener("storage", e => {
-
-             // console.log("Storage Event", e);
-
-             if(e.key.includes("JR_message_pong") && Boolean(e.newValue)) {
-
-             _lastReceivedPongTime = Date.now();
-
-             let pongData = JSON.parse(e.newValue);
-
-             let lag = Number(pongData.time) - Number(_lastReceivedPongTime);
-
-             if(hasIndicatedOnlineSinceLastPing()) {
-             resolve("online");
-             }
-             }
-             });
-             */
-        });
-
-        ping();
-
-        return isOnlinePromise;
-    }
-
-    function addJob(gid, once, metadata) {
-        let commandString = once ? "addOnceJob" : "addJob";
-
-        localStorage.setItem("JR_message_pandacrazy", JSON.stringify({
-            time: Date.now(),
-            command: commandString,
-            data: {
-                groupId: gid,
-                title: (metadata ? metadata.hitTitle || metadata.title : undefined),
-                requesterName: (metadata ? metadata.requesterName : undefined),
-                requesterId: (metadata ? metadata.requesterID || metadata.requesterId || metadata.rid : undefined),
-                pay: (metadata ? metadata.hitValue || metadata.pay : undefined),
-                duration: (metadata ? metadata.duration : undefined),
-                hitsAvailable: (metadata ? metadata.hitsAvailable : undefined)
-            }
-        }));
-    }
-
-    function startJob(gid) {
-        localStorage.setItem("JR_message_pandacrazy", JSON.stringify({
-            time: Date.now(),
-            command: "startcollect",
-            data: {
-                groupId: gid
-            }
-        }));
-    }
-
-    return {
-        addJob,
-        startJob,
-        ping,
-        online
+function addJob(gid, once, metadata) {
+    let commandString = once ? "addOnceJob" : "addJob";
+    const item = {
+        name: metadata.requesterName,
+        link: `https://worker.mturk.com/projects/${gid}/tasks/accept_random?ref=w_pl_prvw`,
+        accepted: 0,
+        description: '',
+        alarm: true,
+        enabled: true
     };
-})();
+    const e = new CustomEvent('PM_EVENT', {detail: item});
+    window.dispatchEvent(e);
+}
+
+function startJob(gid) {
+    const e = new CustomEvent('PM_EVENT', {detail: gid});
+    window.dispatchEvent(e);
+
+}
 
 const SPEECH_VOICE    = 3;          //0 - 21ish
 const SPEECH_RATE     = 0.9;        //1 - 10 (default is 1)
@@ -440,7 +347,7 @@ $('body').html(
     '<div id="TVAlert" style="background-color: #dff0d8; border-color: #d0e9c6;' + (((config.tv_api_key == '' || config.tv_api_key.length != 40) && !config.disable_tv) ? `` : ` display: none; `) +' color: #3c763d; padding: 15px; margin-bottom: 1rem; border: 1px solid transparent; border-radius: 2px; margin: auto; width: 60%; padding-top: 10px; padding-bottom: 10px;">' +
     '<h4 style="font-size: 0.857rem; margin-bottom: 0.5rem; margin-top: 0.5rem;">TurkerView API Changes (<span class="closeTvAlert" style="cursor: pointer;">Dismiss</span>)</h4>' +
 
-        `<small>
+    `<small>
     <p>Sorry for the intrusion, but we're expanding our services & infrastructure and making huge improvements to the way we deliver information & data to Turkers in 2019!</p>
     <p>HIT Forker has been updated to function with TurkerView's new View API [<a href="https://forum.turkerview.com/threads/hit-forker-update.2025/" target="_blank">details here</a>]
     <p>TVJS 10 is out! You can read change details <a href="https://forum.turkerview.com/threads/turkerviewjs-10.2010/" target="_blank">here</a> - including improvements to approval (AA) time tracking! You can find more information about the full API changes <a href="https://forum.turkerview.com/threads/view-api-details.2012/" target="_blank" style="text-decoration: underline;">on our announcement here</a>.</p>
@@ -682,7 +589,7 @@ $('body').html(
     '</div>' +
     '<div style="position: relative; width: 80%; left: 10%; border-bottom: 3px solid; padding: 2px; text-align: center;">TurkerView</div>' +
     '<div><p><label>TurkerView API Key: </label><input id="tv_api_key" value="' + ((config.tv_api_key == null || config.tv_api_key.length != 40) ? '' : config.tv_api_key) + '"></p></div>' +
-        '<div><p><label><input type="checkbox" name="disable_turkerview"' + (config.disable_tv ? 'checked' : '') + '> Disable TurkerView</label></p></div>' +
+    '<div><p><label><input type="checkbox" name="disable_turkerview"' + (config.disable_tv ? 'checked' : '') + '> Disable TurkerView</label></p></div>' +
     '<div><p>TurkerView is completely free (no obligation) for a month, we hope you\'ll <a href="" target="_blank">join us & try it</a>, but if not feel free to disable to stop notifications.</p></div>' +
 
     '<div style="position: relative; width: 80%; left: 10%; border-bottom: 3px solid; padding: 2px; text-align: center;">Theme</div>' +
@@ -1132,9 +1039,9 @@ function _scrape_new (data, timeis) {
     var toPromise = _to(keys, log_keys, logged_in, to, timeis);
 
     $.when( tvPromise, toPromise).done( function( v1, v2 ) {
-            _build(keys, log_keys, timeis);
-        }
-    );
+        _build(keys, log_keys, timeis);
+    }
+                                      );
 }
 
 let stopTV = false;
@@ -1625,16 +1532,8 @@ function _panda(term, reqname, reqid, title, value, name, button) {
 
     var once = name == "panda" ? false : true;
 
-    PandaCrazy.online().then (
-        function(successResp) {
-            PandaCrazy.addJob( term, once, hitData );
-            button.addClass("clicked")
-        },
-        function(failedResp) {
-            alert( "Panda Crazy doesn't appear to be running. Please double check if it's being run on the same browser profile and try again");
-        }
-    );
-    //console.log ( running );
+    addJob( term, once, hitData );
+    button.addClass("clicked")
 }
 
 
@@ -1993,9 +1892,9 @@ function _json_validator (data) {
 }
 
 function _export_slk (key) {
-  var hit = hitlog[key];
-  var quals = hit.quals.split(';');
-  var qualif = '';
+    var hit = hitlog[key];
+    var quals = hit.quals.split(';');
+    var qualif = '';
 
     for (var k = 0; k < quals.length; k ++) {
         if (quals[k] !== '') {
@@ -2011,11 +1910,11 @@ function _export_slk (key) {
                     //quals[k] += '<form action="' +temp[1] +'" method="post"><button>Request</button></form>';
                 }
             }
-          qualif += quals[k] + ';';
+            qualif += quals[k] + ';';
         }
-      }
+    }
 
-     var exportcode = 'Title: ' + hit.safetitle + ' • ' + pandaurl + hit.prevlink.replace(/\?ref=w_pl_prvw/, '') + ' • ' + pandaurl + hit.pandlink.replace(/\?ref=w_pl_prvw/, '') + '\n' +
+    var exportcode = 'Title: ' + hit.safetitle + ' • ' + pandaurl + hit.prevlink.replace(/\?ref=w_pl_prvw/, '') + ' • ' + pandaurl + hit.pandlink.replace(/\?ref=w_pl_prvw/, '') + '\n' +
         'Requester: ' + hit.reqname + ' • ' + pandaurl + hit.reqlink.replace(/\?ref=w_pl_prvw/, '') + '\n' +
         'TV: [Hrly: $' + hit.tv.replace(/\$/g, '') + '] [Fast:] [Comm:] [Fair:] [Reviews:] [ToS:] • ' + hit.tvlink + '\n' +
         'TO: [Pay: ' + hit.to.pay + '] [Fast: ' + hit.to.fast + '] [Comm: ' + hit.to.comm + '] [Fair: ' + hit.to.fair + '] • ' + hit.tolink + '\n' +
@@ -2024,9 +1923,9 @@ function _export_slk (key) {
         'Available: ' + hit.avail + '\n' +
         'Description: ' + hit.desc + '\n' +
         'Requirements: ' + quals + '\n'
-       ;
-  GM_setClipboard(exportcode);
-  alert('Slack export has been copied to your clipboard.');
+    ;
+    GM_setClipboard(exportcode);
+    alert('Slack export has been copied to your clipboard.');
 }
 
 function _save (type) {
